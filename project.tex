@@ -1,0 +1,551 @@
+\documentclass{article}
+
+\usepackage[utf8]{inputenc}
+\usepackage[english]{babel}
+\usepackage[]{amsthm}
+\usepackage[]{amssymb}
+\usepackage[]{mathtools}
+\usepackage{graphicx}
+% Set page size and margins
+\usepackage[letterpaper,top=2cm,bottom=2cm,left=3cm,right=3cm,marginparwidth=1.75cm]{geometry}
+\usepackage[colorlinks=true, allcolors=blue]{hyperref}
+\usepackage{lipsum} 
+\usepackage{amsmath}
+
+%Bib
+\usepackage{natbib}
+\usepackage{hyperref}
+\bibliographystyle{plain}
+% subsubsection
+\usepackage{titlesec}
+\setcounter{secnumdepth}{4}
+\titleformat{\paragraph}
+{\normalfont\normalsize\bfseries}{\theparagraph}{1em}{}
+\titlespacing*{\paragraph}
+{0pt}{3.25ex plus 1ex minus .2ex}{1.5ex plus .2ex}
+
+\usepackage{amssymb}
+
+\let\originallesssim\lesssim
+\let\originalgtrsim\gtrsim
+
+\DeclareRobustCommand{\lesssim}{%
+  \mathrel{\mathpalette\lowersim\originallesssim}%
+}
+\DeclareRobustCommand{\gtrsim}{%
+  \mathrel{\mathpalette\lowersim\originalgtrsim}%
+}
+
+\makeatletter
+\newcommand{\lowersim}[2]{%
+  \sbox\z@{$#1<$}%
+  \raisebox{-\dimexpr\height-\ht\z@}{$\m@th#1#2$}%
+}
+\makeatother
+
+
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{claim}[theorem]{Claim}
+\newtheorem{conjecture}[theorem]{Conjecture}
+\newtheorem{fact}[theorem]{Fact}
+\newtheorem{remark}[theorem]{Remark}
+
+
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{example}[theorem]{Example}
+\newtheorem{exercise}{Exercise}
+
+\newtheorem{axiom}{Axiom}
+\newtheorem*{note}{Note}
+\newtheorem*{question}{Question}
+\newtheorem{assumption}{Assumption}
+\newtheorem*{assignment}{Assignment}
+\newtheorem*{interpretation}{Interpretation}
+
+\author{Cheng Peng, Tianci Chen}
+
+\title{ST793 Project: Uniform Inference in GGM}
+
+
+\begin{document}
+\maketitle
+
+Our project is motivated by \textit{Uniform Inference in High-Dimensional Gaussian Graphical Models} by Klaassan et al. (2023), which presents comprehensive results for uniform inference in the context of joint hypothesis testing within high-dimensional graphical models.Graphical model estimates dependence structure in covariates. The formal setting is motivated by and similar to \textit{Double Machine Learning} (Chernozhukov et al., 2018) and \textit{Nodewise Regression} (Callot et al., 2021). For a p-dimensional gaussian random variables, the main system of equations involves regressing each variable on all remaining variables to assess the pairwise dependency. \\
+
+\noindent The paper is related with ST 798 in the following way: The target parameters are estimated via a Z-estimation scheme. Inference on the estimation relies on the asymptotic properties of Z-estimation. The uniform confidence interval is constructed using a bootstrap approach. Thus the technique of constructing bootstrap confidence intervals will be discussed.\\
+
+\noindent Before we dive into the formal theorem, we will first give a brief introduction on Gaussian Graphical Model followed by an illustration from a simplified Partial Linear Regression model. A Gaussian Graphical Model (GGM) represents the conditional independence structure between multivariate Gaussian distributed variables. In simpler terms, it's a way to understand how different variables, assumed to have a Gaussian (normal) distribution, interact with each other. The graph structure of the model is represented as a graph where each node represents a variable, and edges (or lack thereof) represent conditional dependencies between variables. For example, an edge between two nodes means the corresponding variables are conditionally dependent given other variables. If there's no edge between two nodes, it implies the variables are conditionally independent given the others. The inverse of the covariance matrix (called the precision matrix) is key in GGM. The precision matrix indicates the strength and sign of the conditional dependencies. A zero in the precision matrix indicates conditional independence.\\
+
+\begin{figure*}[h!]
+    \centering
+    \includegraphics[width=7cm,height=7cm] {Rplot02.jpeg}
+    \caption{A GGM Network}
+\end{figure*}
+
+\newpage
+
+
+\noindent The Blog is organized as the followings: In section 2, we use a simple example to illustrate how multiplier bootstrap works to construct simultaneous confidence interval. In section 3, we present the main theorem of the paper. In section 4, we discuss in details the Buhadur representation from Belloni(2018), the key step to the main theorem. In section 5 and section 6, we want to show GGM, the assumptions proposed in Belloni are satisfied therefore the main theorem holds.  
+
+\section{Precision Estimation}
+Imitating the graph theory framework, we would like to study whether two random variables are conditionally independent; that is, estimating edges in a graph. Thus for p-dimensional gaussian random variables $X = (X_1,...,X_p)^T \sim \mathcal{N}(\mu_X , \Sigma_X)$, our goal is to estimate parameter $\beta_j$. Let $m_r = (j,k) \in \mathcal{M}$ be all potential edges (conditional dependence) and $\eta_{m_r} = (\beta^{(j)}_{-k}, \gamma^{(j,k)})$ :
+\[
+    X_j=\beta^{j}X_{-j}+\epsilon^{j},\ X_k=\gamma^{(j,k)}X_{\{-j,k\}}+v^{(j,k)}
+\]
+\[
+    X_j = \theta_{m_r}X_k + (\eta^{(1)} + \eta^{(2)})X_{-m_r} + \epsilon^{(m_r)} 
+\]
+\noindent \textit{Note that for simplicity in notation,} $\eta^{(2)}=\theta_{m_r} \gamma^{(j,k)}$ \\
+\noindent Realizing that $\theta_{m_r} = 0 \Leftrightarrow X_j \perp X_k | X_{-m_r}$, we are now interested in estimating target parameter $\theta_{m_r}$ while having $\eta$ as the nuisance parameters. The key idea behind the above two-step regression procedure, or so-called the \textit{debiased machine learning}, is to identify the variable inducing omitted variable bias in the first regression and then using this information to de-bias. Therefore moment conditions such that omitted variable bias varnishes as sample size increases must be satisfied to obtain the unbiased estimators of target parameters. Consequently, under the assumptions that $E(\epsilon^{(j)} | X_{-j}) = 0$ and $E(X_{-m_r}\nu^{(m_r)}) = 0$, a natural choice of $\psi$ function for M-estimation is the product of these two error terms in the two-step regressions: 
+\[
+    \psi_{m_r}(X,\theta,\eta) = \epsilon^{(j)}\nu^{(j,k)} = (X_j - \theta X_k - \eta^{(1)} X_{-m_r}) (X_k - \eta^{(2)} X_{-m_r})
+\]
+
+\noindent Hence, the problem of conditional dependence estimation fits into M-estimation of the form:
+\[
+    E_n\{\psi_{m_r}(X,\theta,\eta)\} = 0 
+\]
+\[
+    \hat{\theta}_{m_r} = \{ E_{n} (\hat{\nu}^{(j,k)}X_k)\}^{-1} E_{n} \{\hat{\nu}^{(j,k)}(X_{j}-\hat{\beta}_{-k}^{(1)}X_{-(j,k)})\}
+\]
+
+\noindent The estimated target parameters are subsequently applied to compute estimated precision matrix, $\Sigma^{-1}_X = \Phi$, as the following:\\
+\begin{align*}
+    \beta_j &= (X_{-j}^T X_{-j})^{-1} X_{-j}^T X_j = \Sigma^{-1}_{-j,-j} \Sigma_{-j,j} \\
+    \Sigma_{j,j} &= Var(X_j) = {\beta^j}^T \Sigma_{-j,-j} \beta^j + E(\epsilon^j)^2 \\
+    \implies E(\epsilon^j)^2 &= Var(\epsilon^j) = \Sigma_{j,j} - \Sigma_{j,-j} \Sigma^{-1}_{-j,-j} \Sigma_{-j,j} \\
+    \textit{By inverse block matrix identity,}\\
+    \Phi_{j,j} &= (\Sigma_{j,j} - \Sigma_{j,-j} \Sigma^{-1}_{-j,-j} \Sigma_{-j,j})^{-1} \\
+    \Phi_{j,-j} &= -\Phi_{j,j} \Sigma_{j,-j} \Sigma^{-1}_{-j,-j} \\
+    \implies \Phi &= (\frac{-\beta^j}{Var(\epsilon^j)})_{j=1,...,p}
+\end{align*}
+
+\noindent Therefore, the dependence structure of a graph can be estimated. In the next section, we discuss the consistency of M-estimators formally in details. \textit{Figure 2} is the precision matrix estimation of a clustered graph generated by the R package \textit{huge} for graphical model estimations. \\
+
+\section{Multiplier Bootstrap}
+The construction of confidence regions in \textit{Theorem 1} is based on \textit{Multiplier Bootstrap} which was introduced in Chernozhukov et al. (2013) \cite{Victor_2013}. While the consistency of the method is discussed comprehensively in the proof of the main results, we would like to use a simplified simulation to illustrate the method in this section.\\
+
+\noindent Multiplier (or wild) bootstrap is method for Gaussian approximation for the maximum of a sum of
+high-dimensional random vectors. The key technique of Multiplier bootstrap is to use random weights (multipliers) drawn from a Gaussian distribution in the bootstrap-resampling. Each bootstrap sample is generated by weighting the original sample with random weights. Chernozhukov et al. (2013) showed that the distribution of the maximum of a sum
+of the random vectors with unknown covariance matrices can be consistently estimated by the distribution of the maximum of a sum of the conditional Gaussian random vectors obtained by multiplying the original vectors with iid Gaussian multipliers. \\
+
+\noindent Suppose we are interested in approximating the quantile of $T =  \text{max}_{1 \le j \le p} \frac{1}{\sqrt{n}} \sum_{i=1}^{n} x_{ij}$ where $x_i \in \mathbb{R}^{p}$ are independent random vectors. Multiplier bootstrap constructs an estimator for the $\alpha$ quantile of $T$ as the conditional $\alpha$ quantile of $W$ given $x$:
+\[
+W =  \text{max}_{1 \le j \le p} \frac{1}{\sqrt{n}} \sum_{i=1}^{n} x_{ij} e_{ij}
+\]
+\[
+c_{w}(\alpha) = inf[t\in \mathbb{R}: P_e (W\le t)\ge \alpha]
+\]
+\textit{$\ast$ $e_i$ is gaussian multupliers and $P_e$ is its associated probability measure. The multiplier bootstrap theorem states a nonasymptotic bound on the bootstrap estimation error. The main result of this paper, construction of uniform confidence region, is based on multiplier bootstrap theorem. Formal discussion of the theorem is found in the proof section.}\\
+
+\noindent To illustrate multiplier bootstrap method, we will now consider a Partially Linear Regression (PLR) model for the simulation; it is a commonly used framework in causal inference studies and similar to the idea of double machine learning. Let us consider outcome variable $Y$ as a function of treatments $D$ and other covariates $X$ where our target parameters are the parameters associated with treatments:\\
+\[
+Y = \theta^T D + g(X) + \zeta, \quad E(\zeta | D,X) = 0 
+\]
+\[
+D = m(X) + V, \quad E(V|X) = 0
+\]
+\textit{$\ast$ Note that the PLR framework is analogous to the setup of this paper when $m(\cdot)$ and $g(\cdot)$ are simply linear.} \\
+We can compute the natural choice of score functions as the product of the two error terms; target parameter is subsequently the solution to the moment condition of $\Psi$ function:
+\[
+\Psi(X,Y;\theta,\eta) = (Y-D\theta-g(X))(D-m(x))
+\]
+Based on the uniform Bahadur representation (see proof section), we have:
+\[
+\frac{1}{\sqrt{n}} \sigma^{-1}_{m_r} (\hat{\theta}_{m_r} - \theta_{m_r}) \approx \frac{1}{\sqrt{n}} \sum_{i=1}^{n} \Bar{\Psi}_{m_r}(X,Y)
+\]
+We are interested in constructing simultaneous confidence interval:
+\[
+(\hat{\theta}_{m_r} \pm c_{1-\alpha} \frac{\hat{\sigma}_{m_r}}{\sqrt{N}})
+\]
+Multiplier bootstrap comes in as we determine the critical value, $c_{1-\alpha}$. In \textit{Table 1} we present a simulation result for the above PLR model. The target parameters are the 10 coefficients associated with treatments. There are in total 100 gaussian random vectors generated and we preserve the first 10 as treatments and the rest are nuisance.
+\newpage
+
+\begin{figure}[h!]
+  \includegraphics[width=15cm,height=9cm] {Rplot01.jpeg}
+  \caption{Precision Estimation of a Clustered Graph}
+  \label{Figure 1}
+\end{figure}
+\textit{$\ast$ Figure 2 is produced using R package 'huge' and 'GGMtest' where 'huge' is used to simulate graph and export plots and 'GGMtest' is used for precision estimation. We generated a graph with 6 clusters, each node (yellow dot with a number) represents a variable and each edge shows the conditional dependence structure.}\\
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{||c c c c c||} 
+ \hline
+ Treatment & Estimate & pVal & $\eta_.025$ & $\eta_.975$ \\[0.5ex] 
+ \hline\hline
+ d1  & 2.976 & 0.000 & 2.832 & 3.119 \\
+ d2  & 3.018 & 0.000  & 2.894 & 3.142 \\
+ d3  & 3.002 & 0.000 & 2.864 & 3.141 \\
+ d4  & 0.033 & 0.992 & -0.092 & 0.159 \\
+ d5  & -0.009 & 0.992 & -0.133 & 0.115 \\
+ d6  & -0.015 & 0.992 & -0.136 & 0.106 \\ 
+ d7  & 0.029 & 0.992 & -0.104 & 0.162 \\
+ d8  & -0.035 & 0.992 & -0.167 & 0.097 \\
+ d9  & 0.012 & 0.992 & -0.118 & 0.142 \\
+ d10 & -0.034 & 0.992 & -0.163 & 0.094\\ [1ex]
+ \hline
+\end{tabular}
+\caption{PLR simultaneous confidence region}
+\label{Table 1}
+\end{table}
+
+\textit{$\ast$ Table 1 relies on R package 'DoubleML'. The code is modified from a PLR example to use the product of two-step errors as the score function and multiplier bootstrap as the bootstrap method to produce simultaneous confidence intervals.}
+
+\newpage
+
+\section{Statement of the main theorem}
+Choose $a_n=max(d,p,n,e)$, c,C are some constants independent of n.
+\begin{assumption}
+  For all appropriate index l,r we have the sparse approximation:
+  \begin{equation}
+      X_l=\beta^{(l)}X_{-l}+\epsilon^{(l)}=(\beta^{(1,l)}+\beta^{(2,l)})X_{-l}+\epsilon^{(l)}
+  \end{equation}
+  with $||\beta^{(1,l)}||\leq s$, $max_l ||\beta^{(2,l)}||_2^2\leq Cslog(a_n/n)$ and $max_l ||\beta^{(2,l)}||_1^2\leq Cslog^{1/2}(a_n/n)$
+\end{assumption}
+\begin{assumption}
+    There exist positive numbers $\tilde{q}>0$ and $\kappa<1$, then $n^{1/\tilde{q}}s^2log^4 (a_n/n)$ and $log d=o(n^{1/9}\wedge n^{\kappa/\tilde{q}})$ holds
+\end{assumption}
+
+\begin{assumption}
+    \begin{equation}
+      c \leq E\{ (\xi X)^2\}\leq C,\quad ||\xi||_2=1
+    \end{equation}
+\end{assumption}
+
+\begin{remark}
+    Assumption 1 is a standard approximate sparse condition and it determines the sparse structure of the model. Assumption 2 is an essential condition for the growth rate so that high-dimensional central limit theorem and multiplier bootstrap are valid. Assumption 3 is a standard eigenvalue condition that restricts the correlation between each components of X.
+\end{remark}
+The main idea is that we can find the uniform Bahadur representation of all the target estimators and construct the simultaneous confidence region via multiplier bootstrap. 
+
+\[
+\sqrt{n}^{-1}\sigma_{m_r}^{-1}(\hat{\theta}_{m_r}-\theta_{m_r}) \approx \sqrt{n}^{-1} \sum_{i=1}^{n} \bar{\psi}_{m_r}
+\]
+$\bar{\psi}_{m_r}=-\sigma_{m_r}^{-1}J^{-1}_{m_r}\psi_{m_r}(\cdot,\theta_{m_r},\eta_{m_r})$ is the influence function with $\sigma_{m_r}^2=E[J^{-2}_{m_r} \psi_{m_r}^2(X,\theta_{m_r},\eta_{m_r})]$ and $J_{m_r} = \partial_\theta E[\psi_{m_r}(X,\theta_{m_r},\eta_{m_r})]$. To approximate the large sample behavior, we need to use gaussian multiplier bootstrap approach thus the bootstrapped process:
+\[
+\hat{\mathcal{N}} = \sqrt{n}^{-1} \sum_{i=1}^{n} \xi_i \hat{\psi}_{m_r}(X_i)
+\]
+where $(\xi_i)$ is the gaussian multiplier independent from $(X_i)$. $c_{1-\alpha}$ is the $(1- \alpha)$ conditional quantile of $\underset{m_r}{sup}\: |\hat{\mathcal{N}}_{m_r}| $.
+\begin{theorem}
+   Then under Assumption 1 - Assumption 3 with probability $1-o(1)$ uniformly over $P\in \mathcal{P}_n$
+\[
+P(\theta_{m_r} \in \hat{\theta}_{m_r} \pm \sqrt{n}^{-1}c_{1-\alpha}\hat{\sigma}_{m_r},r=1,2,...,d) \longrightarrow 1-\alpha
+\]
+ 
+\end{theorem}
+
+
+\section{Bahadur representation}
+To prove the consistency of Z-estimators, we need to use the results in Belloni(2018)\cite{Belloni_2018}. In this section, the notation is slightly different with other sections to keep consistent with those in Belloni(2018). Keep in mind in this section, we are dealing with Z-estimation under a general setting and has nothing to do with GGM.
+\subsection{Set up}
+Firstly we suppose for all $uj\in \mathcal{M},$, the index set of target estimator, the true value of target parameter $\theta_{uj}\in \Theta_{uj}$. The true nuisance parameter $\eta_{uj}\in T_{uj}$ a convex space endowed with norm $||_e$.  
+Throughout the section $E_n$ is the empirical expectation. $G_n$ is the empirical process defined as 
+\begin{equation}
+    G_n(F)=\sqrt{n}[\frac{1}{n}\sum_i f(X_i)-E(f(X_i))]
+\end{equation}
+What's more, the Neyman orthogonal condition should be satisfied. The intuition is that we want to ensure the bias from the estimators of high-dimensional nuisance parameters does not spread into the estimators of the target parameters. Formally we have the definition below:
+\begin{definition}{(Near-orthogonality condition)}
+    For each $uj\in \mathcal{M}$, we say $\psi_{uj}$ obeys the near orthogonal condition with respect to $\mathcal{T}_{uj}\subset T_{uj}$ if the Gateautex derivative map :
+    \begin{equation}
+        D_{u,j,\bar{r}}[\eta-\eta_{uj}]=\partial_r E_P[\psi_{uj}(W,\theta_{uj},\eta_{uj}+r(\eta-\eta_{uj}))]|_{r=\bar{r}}
+    \end{equation}
+    exists for all $\bar{r}\in [0,1]$ and $\eta\in \mathcal{T}_{uj}$ and nearly vanishes at $\bar{r}=0$, i.e.
+    \begin{equation}
+        |D_{u,j,0}[\eta-\eta_{uj}]|\leq C_0\delta_n n^{-1/2}
+    \end{equation}
+    for all $\eta\in \mathcal{T}_{uj}$.
+\end{definition}
+
+\begin{remark}
+    The Gauteaux derivative is nothing but directional derivative with respect to the direction $\eta-\eta_{uj}$. In other words, the condition requires that the change of $\psi$ is approximately 0 when there is a tiny change of the nuisance parameter $\eta_{uj}$ inside the domain of the nuisance parameter. Therefore we can say that the bias of $\hat{\eta}$ will not affect the estimation of $\theta_{uj}$ as long as the $\hat{\eta}$ converges to its true value fast enough. 
+\end{remark}
+Several quantities are required. $\{B_{1n}\},\{B_{2n}\}$ are some sequences of constants (we will show that they are not depend on n). $\omega,c_0, n_)\geq 3$ are some constants. In addition denote,
+\begin{align}
+    &S_n=E_P[sup_{uj}|\sqrt{n}E_n[\psi_{uj}(W,\theta_{uj},\eta_{uj})]|]\\
+    &J_{uj}=\partial_{\theta} \{ E_P [\psi_{j}(W,\theta,\eta_{uj})]\}|_{\theta=\theta_{uj}}
+\end{align}
+We expect $S_n$ to be very small and bounded since $E_P[\psi_{uj}(W,\theta_{uj},\eta_{uj})]=0,\forall uj\in \mathcal{M}$.
+The $J_{uj}$ is more like the term A in our common M-estimation theory. 
+\begin{assumption}
+    (Moment condition) for all $n\geq n_0, P\in P_n, uj\in\mathcal{M}$ we have 
+    \begin{enumerate}
+        \item The true parameter obeys $E_P[\psi_{uj}(W,\theta_{uj},\eta_{uj})]$ and the space $\Theta_{uj}$ contains a ball of the radius $C_0 b^{-1/2} S_nlogn$ centered at $\theta_{uj}$. 
+        \item The function $E_P[\psi_{uj}(W,\theta,\eta)]$ is twice Gateautex-differentiable on $\Theta_{uj}\times \mathcal{T}_{uj}$ 
+        \item The score function $\psi_{uj}$ obeys the near-orthogonality condition for set $\mathcal{T}_{uj}\subset T_{uj}$
+        \item For all $\theta\in \Theta_{uj},|E_P[\psi_{uj}(W,\theta,\eta_{uj})]|\geq 2^{-1}|J_{uj}(\theta-\theta_{uj})|\wedge c_0$, where $c_0<J_{uj}<C_0$.
+        \item For all $r \in [0,1], \theta\in \Theta_{uj},\eta\in \mathcal{T}_{uj}$:
+        \item[(a)] $E_P[(\psi(W,\theta,\eta)-\psi_{uj}(W,\theta_{uj},\eta_{uj}))^2]\leq C_0(|\theta-\theta_{uj}|\vee ||\eta-\eta_{uj}||_e)^\omega$
+        \item[(b)] $|\partial_r E_P[\psi_{uj}(W,\theta,\eta_{uj}+r(\eta-\eta_{uj}))]|\leq B_{1n}||\eta-\eta_{uj}||_e$
+        \item[(c)] $|\partial_r^2 E_P[\psi_{uj}(W,\theta_{uj}+r(\theta-\theta_{uj}),\eta_{uj}+r(\eta-\eta_{uj}))]|\leq B_{2n}(|\theta-\theta_{uj}|^2\wedge ||\eta-\eta_{uj}||_e^2)$
+    \end{enumerate}
+\end{assumption}
+
+\begin{remark}
+In general, the assumptions(???) are mild and standard regularized conditions on score functions $\psi_{uj}$. (1) requires the $\theta_{uj}$ separated sufficiently from the boundary of the domain $\Theta_{uj}$. (3) is the key assumption that has been discussed. (4) implies the uniqueness of the solution of the solution. (5) are just some common smoothness assumption on the score function and its first and second order directional derivatives. 
+
+\end{remark}
+
+Suppose $\{ \Delta_n,\tau_n\}$ are some sequences of positive numbers that converges to zero. Let $\{v_n\},\{K_n\}$ are some sequences of positive numbers that can increase to infinity. Let $q\geq 0$:
+\begin{assumption}
+    \begin{enumerate}
+        \item With probability 1-$\Delta_n$, we have $\hat{\eta}_{uj}\in \mathcal{T}_{uj}$. 
+        \item For all $uj\in \mathcal{T}_{uj} $ and $||\eta-\eta_{uj}||_e\leq \tau_n $,
+        \item For all uj, we have $\eta_uj\in \mathcal{T}_{uj}$ 
+        \item The function class 
+        \begin{equation}
+            \mathcal{F}_1=\{\psi_{uj}(\cdot, \theta, \eta ): \theta_{uj}=\Theta_{uj},\eta_{uj}\in \mathcal{T}_{uj} \}
+        \end{equation}
+        is suitably measurable and its uniform entropy numbers obey
+        \begin{equation}
+            sup_Q log N(\epsilon||F_1||_{Q,2},\mathcal{F}_1,||\cdot||_{Q,2})\leq v_n log(a_n/\epsilon) \ \forall 0\leq \epsilon \leq 1
+        \end{equation}
+        where $F_1$ is an envelop for $\mathcal{F}_1$ that its $l_q$ norm with respect to P is bounded by $K_n$. 
+        \item for all $f \in \mathcal{F}_1$, $c_0\leq ||f||_{P,2}\leq C_0$
+        \item The complexity characteristics $a_n,v_n$ satisfies:
+        \item[(a)] $(v_n log a_n/n)^{1/2} \leq C_0\tau_n$
+        \item[(b)]$(B_{1n}\tau_n + S_n log(n/\sqrt{n}))^{\omega/2}(v_n log a_n)^{1/2} + n^{-1/2+1/q} v_n K_n log a_n\leq C_0 \delta_n,$
+        \item[(c)] $n^{1/2} B_{1n}^2 B_{2n} \tau_n^2\leq C_0\delta_n.$
+    \end{enumerate}
+\end{assumption}
+\begin{remark}
+    The Assumption mainly provides conditions for the nuisance estimator $\hat{\eta}_{uj}$. (1) requires the set $\mathcal{T}_{uj}$ is large enough so that $\hat{\eta}_{uj}$ lies inside it with high probability. (2) requires the nuisance estimator converges as fast as $\tau_n$.\\
+    (4) is a standard assumption in empirical process. It is mostly related to the Thm 6.3 in our textbook, i.e. the compact space $\Theta$ will lead to the uniform convergence. To give a informal definition of uniform entropy number, we need to define the $\epsilon-$ net. For a space $\mathcal{F}$ endowed with norm $||\cdot||$ ( corresponding to the $\mathcal{F}_1$ and $||\cdot||_{Q,2}$), we have the subset of $\mathcal{F} $ such that for any element f in $\mathcal{F}$, there exist f' inside the subset such that $||f-f'||\leq \epsilon$. Then the uniform entropy number is the size of the subset associated with $\epsilon$. The F is envelop if $|F|\geq sup_{f\in\mathcal{F}}|f|$ and $||F||_{P,q}\leq \infty$. The intuition for how it works is that,it is hard to find a supreme over all score functions (infinite many), the we narrow down our vision to the subset $\epsilon- net$ of the $\mathcal{F}$. Since the size of it is controlled, it will be tractable to find the supreme and extend the uniform bound to the whole $\mathcal{F}_1$.\\
+    (5) are just some restrictions on the quantities $a_n, v_n, \tau_n$. Overall, the assumption shows the trade-off in the choice of $\mathcal{T}_{uj}$, it should be large enough so that (1) holds and small enough so that the quantities $a_n,v_n$ are controlled. 
+\end{remark}
+
+\subsection{The main theorem of Buhadur representation}
+\begin{theorem}
+    Under The assumption 4 and assumption 4 for estimation $\hat{\theta}_{uj}$ that    , we have 
+    \begin{equation}
+        \sqrt{n}\sigma_{uj}^{-1}(\hat{\theta}_{uj}-\theta_{uj})=G_n \bar{\psi}_{uj} + O_p(\delta_n) \qquad in\ l^{\infty}(\mathcal{M}) 
+    \end{equation}
+    uniformly over $P\in \mathcal{P}_n$, where $\bar{\psi}_{uj}=-\sigma_{uj}^{-1}J^{-1}_{uj}\psi_{uj}(\cdot,\theta_{uj},\eta_{uj})$ and $\sigma_{uj}^2=J^{-2}_{uj}E_P[\psi_{uj}^2(W,\theta_{uj},\eta_{uj})].$
+\end{theorem}
+\begin{remark}
+    (Interpretation of the theorem). Firstly, the theorem is nothing but the approximation by averaging applied to estimator $\hat{\theta}_{uj}$. The term "$h_T$" (I use the notation in our class) is inside the term $G_n$. With some observation, the statement is intuitive and obey the form of the result of Gaussian approximation we learnt on class. The $\sigma_{uj}^{-1}$ is just a scaling factor. After dropping the scale term, the term$\bar{\psi_{uj}} $ is just $J^{-1}_{uj}\psi_{uj}$ and its variance is just $J_{uj}^{-2}E_P(\psi_{uj}^2)$, which is exactly the "$V(\theta_0)$" we used on class. Therefore, we can believe this statement is correct in some sense. On the other hand, the $\hat{\theta}_{uj} $ is similar to the estimator $\tilde{\theta}$ we  used in Score test on class except for the nuisance parameter is estimated via lasso regression instead of M-estimation.
+\end{remark}
+\begin{remark}
+    Basing on the result, we want to construct simultaneous confidence interval for all $uj\in \mathcal{M}$. In a simpler case, we assume the functions $u\mapsto \sqrt{n}\sigma_{uj}^{-1} (\hat{\theta}_{uj}-\theta)-G_n\bar{\psi}_{uj}$ are Lipschitz-continuous, we can use discretization argument to conclude the approximation holds for uniformly for all $uj$. However, this function is never continuous and the jump points depends on data. A more sophisticated argument should be applied to establish the simultaneous CI. 
+\end{remark}
+
+\subsection{proof of the theorem}
+To prove the theorem, we consider the identity 
+
+\begin{equation}
+\begin{split}
+     \sqrt{n} E_{P,W}[\psi_{uj}(W,\hat{\theta}_{uj},\hat{\eta})-\psi_{uj}(W,\theta_{uj},\eta_{uj})]=\\
+    -\sqrt{n}E_n[\psi_{uj}(W,\theta_{uj}(W,\theta_{uj},\eta_{uj})]+\sqrt{n}E_n[\psi_{uj}(W,\hat{\theta}_{uj},\hat{\eta}_{uj})\\
+    +G_n\psi_{uj}(W,\theta_{uj},\eta_{uj})-G_n \psi_{uj}(W,\hat{\theta}_{uj},\hat{\eta}_{uj}).
+\end{split}
+\end{equation}
+
+The first and second term on the right hand side is $O_P(\delta_n)$ because it can be arbitrarily small because of the definition of $\hat{\theta}_{uj}$. Using a standard theory of Z-estimation, we will show that $\hat{\theta}_{uj}$ converges to true value at the rate of $O_p(B_{1n}\tau_n)$. Then we will be able to show with help of available results in empirical process that the difference of the right hand side is $O_p(\delta_n)$. Finally it remains to show that the left hand side equals to the left hand side of (???) up to an error $O_p(\delta_n)$ and normalization $(\sigma_{uj}J_{uj})^{-1}$.
+
+
+\subsubsection{Preliminary rate result}
+We claim that with probability 1-o(1), $sup_{uj\in \mathcal{M}} |\hat{\theta}_{uj}-\theta_{uj}|\lesssim B_{1n}\tau_n$. To show that, we have for any $uj\in \mathcal{M}$ we have 
+\begin{equation}
+    |E_n[\psi_{uj}(W,\hat{\theta}_{uj},\hat{\eta}_{uj})]|\leq \inf_{\theta\in \Theta_{uj}}|E_n[\psi_{uj}(W,\theta,\hat{\eta}_{uj})]|+\epsilon_n
+\end{equation}
+here we just use the notation to keep consistent with that in the proof of Theorem 2.1 in Belloni (2018). We should never be bothered by the term $\epsilon_n$ because in our model, the $E_n \psi_{uj}$ can achieve zero and thus $\epsilon_n$ can be arbitrarily small. And as it turns out, in the end, whether the term $\epsilon_n$ appears or not doesn't change the result anyway. Then using triangular inequality, we have with probability 1-o(1)
+\begin{equation}
+    |E_P[\psi_{uj}(W,\theta,\eta_{uj})]|_{\theta=\hat{\theta}_{uj}}|\leq \epsilon_n+2I_1+2I_2\lesssim B_{1n}\tau_n
+\end{equation}
+where 
+\begin{align*}
+    I_1&=sup_{uj,\theta} |E_n[\psi_n(W,\theta,\hat{\eta}_{uj})]|-E_n[\psi_{uj}(W,\theta,\eta_{uj})]\\
+    I_2&= sup_{uj,\theta}|E_n[\psi_{uj}(W,\theta,\eta_{uj})]-E_P(\psi_{uj}(W,\theta,\eta_{uj}))|
+\end{align*}
+
+The bound on $I_1,I_2$ are derived in next step. From assumption 4.(4) and the fact that $\epsilon=o(\tau_n)$, we can conclude that
+\begin{equation}
+    sup_{uj\in\mathcal{M}}|\hat{\theta_{uj}-\theta}|\lesssim (inf_{uj}|J_{uj}|)^{-1}B_{1n}\tau_n
+\end{equation}
+with probability 1-o(1).
+
+
+\subsubsection{Bounds on $I_1,I_2$}
+We want to prove in this section that with probability 1-o(1), $I_1\lesssim B_{1n},I_2\lesssim \tau_n$. Consider the two quantities:
+\begin{align*}
+    I_{1a}&=sup_{uj,\theta}|E_n[\psi_{uj}(W,\theta,\eta)]-E_P[\psi_{uj}(W,\theta,\eta)]\\
+    I_{1b}&=sup_{uj,\theta}|E_P[\psi_{uj}(W,\theta,\eta)]-E_P[\psi_{uj}(W,\theta,\eta_{uj})]
+\end{align*}
+It can be seen that $I_1\leq 2I_{1,a}+I_{1,b},\ I_2\leq I_{1a}$. To bound $I_{1b}$ we employ Taylor expansion:
+\begin{align*}
+    I_{1b}&\leq sup_{uj,\theta,\eta,r\in [0,1]}\partial_r E_P[psi_{uj}(W,\theta,r(\eta-\eta_{uj}))]\\
+    &\leq B_{1n}sup_{uj\in \mathcal{M},\eta}||\eta-\eta_{uj}||_e\leq B_{1n}\tau_n
+\end{align*}
+The last two inequalities follows from assumption 4.(5) and assumption 5.(2). \\
+To bound $I_{1a}$, we need to use maximal inequality, which is given by the following lemma. 
+
+\begin{lemma}
+    (Chernozhukov (2014))\cite{Belloni_2013} $\{W_i\}$ is a sequence of iid copy of W. Suppose F is measurable envelop for $\mathcal{F}$ and let $M=max_{i\leq n}F(W_i)$. There exists constant $\sigma^2$ such that $sup_{f} ||f||^2_{P,2}\leq \sigma^2 \leq ||F||_{P,2}^2$. Also, for $a\leq e,  v \leq 1$, we have 
+\begin{equation}
+    sup_Q log N(\epsilon||F||_{Q,2},\mathcal{F},||\cdot||_{Q,2})\leq v log(a/\epsilon)
+\end{equation}
+Then if $a>n$, with probability at least $1-c(logn)^{-1}$, 
+\begin{equation}
+    ||G_n||_{\mathcal{F}}\lesssim C(q,c,\sigma)(\sqrt(vlog(a||F||_{Q,2})+n^{-1/2+1/q}v||F||_{Q,2}))
+\end{equation}
+\end{lemma}    
+Using assumption 5, we will see the left hand side is exactly $\sqrt{n}I_{1,a}$. Using assumption 5, we will finally see $I_{1,a}\lesssim O(\tau_n)$.
+
+\subsubsection{Linearization}
+This section is the main part of the proof. Recall the equation (9). For any $\theta\in \Theta_{uj},\eta\in \mathcal{T}_{uj}$. 
+\begin{align*}
+    \sqrt{n}E_n[\psi_{uj}(W,\theta,\eta)&=\sqrt{n}E_n[\psi_{uj}(W,\theta_{uj},\eta_{uj})]\\
+    &-\sqrt{n}(E_P[\psi_{uj}(W,\theta_{uj},\eta_{uj})]-E_P[\psi_{uj}(W,\theta,\eta)])\\
+    &+G_n\psi_{uj}(W,\theta,\eta)-G_n\psi_{uj}(W,\theta_{uj},\eta_{uj})
+\end{align*}
+Consider the second term on the right hand side. We apply Taylor's expansion to the function $r \mapsto E_P[\psi_{uj}(W,\theta_{uj}+r(\theta-\theta_{uj}),\eta_{uj}+r(\eta-\eta_{uj}))]$. It follows that
+\begin{equation}
+    \begin{split}
+        E_P[\psi_{uj}(W,\theta_{uj},\eta_{uj})]-&E_P[\psi_{uj}(W,\theta,\eta)]\\
+        =J_{uj}(\theta-\theta_{uj})+&D_{u,j,0}[\eta-\eta_{uj}]\\
+        +2^{-1}\partial_r^2 E_P[\psi_{uj}(W&,\theta_{uj}+r(\theta-\theta_{uj}),\eta_{uj}+r(\eta-\eta_{uj}))]|_{r=\bar{r}}
+    \end{split}
+\end{equation}
+where $\bar{r}\in (0,1)$. Plugging in this equality and using the equation (9) we will get if we choose $\theta=\hat{\theta}_{uj},\eta=\hat{\eta}_{uj}$
+\begin{equation}
+    \begin{split}
+        \sqrt{n}|E_P[\psi_{uj}(W,\theta_{uj},\eta_{uj})]+J_{uj}(\hat{\theta}_{uj}-\theta_{uj})+D_{u,j,0}[\hat{\eta}_{uj}-\eta_{uj}|\\
+        \leq \epsilon_n+inf_{\theta}\sqrt{n}|E_n[\psi_{uj}(W,\theta_{uj},\hat{\eta}_{uj})]+|\Pi_1|+|\Pi_2|
+    \end{split}
+\end{equation}
+where 
+\begin{align*}
+    \Pi_1=&\sqrt{n}sup_{r\in [0,1]}| \partial_r^2 E_P[\psi_{uj}(W,\theta_{uj}+r(\theta-\theta_{uj}),\eta_{uj}+r(\eta-\eta_{uj}))]|\\
+    \Pi_2=G_n(\psi_{uj}(W,\theta,\eta)-\psi(W,\theta_{uj},\eta_{uj}))
+\end{align*}
+$\theta=\hat{\theta}_{uj},\eta=\hat{\eta}_{uj}$. Now, the second term can be dropped because 0 can be achieved. $\sqrt{n}\epsilon_n=op(\delta_n)$ due to the fact that $\epsilon_n$ can be arbitrarily small. $sup_{uj}|D_{u,j,0}[\hat{\eta}_{uj}-\eta_{uj}|=O_P(\delta_n n^{-1/2})$ by assumption 1 (3). And by assumption 1(4), 
+\begin{equation}
+    sup_{uj}|\sqrt{n}J^{-1}E_n\psi_{uj}(W,\theta_{uj},\eta_{uj})+\sqrt{n}(\hat{\theta}_{uj}-\theta_{uj})|=O_P(\delta_n)
+\end{equation}
+The statement follows from assumption 1.(4) . Thus due to $\sigma_{uj}$ is bounded on the two sides from assumption 5.(5). The remaining part is to bound $\Pi_1,\Pi_2$.
+
+
+\subsubsection{Bounds on $\Pi_1,\Pi_2$}
+With probability 1-o(1)
+\begin{align*}
+   \sup_{uj}|\Pi_1|\leq& \sqrt{n}B_{2n}sup_{uj}|\hat{\theta}_{uj}-\theta_{uj}|^2\vee ||\hat{\eta}_{uj}-\eta_{uj}||_e^2 \\
+   \lesssim & \sqrt{n}B^2_{1,n}B_{2,n}\tau_n^2\\
+   \lesssim& \delta_n
+\end{align*}
+The first inequality follows from assumption 1.(5) and the second inequality follows from assumption 5(2) and step section 4.3.1. The third inequality follows from assumption 5(6.c). \\
+Secondly, we have $sup_{uj}|\Pi_2|\lesssim sup_{f\in \mathcal{F}_2}|G_n f|$, where
+\begin{equation}
+    \mathcal{F}_2=\{\psi_{uj}(\cdot,\theta,\eta)-\psi_{uj}(\dot,\theta_{uj},\eta_{uj}):uj\in\mathcal{M},|\theta-\theta_{uj}|\lesssim B_{1n}\tau_n, \eta\in\mathcal{T}_{uj} \}.
+\end{equation}
+ To bound $sup_{f\in \mathcal{F}_2}|G_n f|$, we still need to apply the maximal inequality but we have to modify the choice of $F_2$ to satisfy the conditions since the domain $\mathcal{F}_2$ has changed. 
+ \begin{align*}
+     &sup_{f\in\mathcal{F}_2}||f||_{p,2}^2\\
+     &\leq sup_{uj,\theta,\eta}E_P[(\psi_{uj}(W,\theta,\eta)-\psi_{uj}(W,\theta_{uj},\eta_{uj})^2)]\\
+     &\lesssim sup (|\hat{\theta}_{uj}-\theta_{uj}|^2\vee ||\hat{\eta}_{uj}-\eta_{uj}||_e^2 )^\omega\\
+     &\lesssim (B_{1n}\tau_n)^\omega
+ \end{align*}
+ Therefore we choose $F_2=2F_1$ where $F_1$ by assumption 5.(4) and we can see $\sigma\sim (B_{1n}\tau_n)^{\omega/2}$.
+ We can also see the covering number:
+\begin{align*}
+    N(\epsilon||F_2||_{Q,2},\mathcal{F}_2,||\cdot||_{Q,2})\leq N(\epsilon||F_1||_{Q,2},\mathcal{F}_1,||\cdot||_{Q,2})^2\\
+    logN(\epsilon||F_1||_{Q,2},\mathcal{F}_1,||\cdot||_{Q,2})\lesssim v_nlog(a_n/\epsilon)
+\end{align*}
+ Thus we can bound the  $sup_{f\in \mathcal{F}_2}|G_n f|$ by the 
+ \begin{equation}
+     (B_{1n}\tau_n)^{\omega/2}\sqrt{v_n a_n}+n^{-1/2+1/q}v_n K_n log a_n
+ \end{equation}
+ and by assumption 5(6.b) it is bounded by $O_P(\delta_n)$.
+
+
+\section{Uniform nuisance function estimation}
+From assumption 5, we can see the convergence rate of nuisance estimator plays an important role of the Buhadur representation. We want to return to the GGM world to find an appropriate estimation of nuisance parameters. In general we use lasso regression to obtain the estimation. Consider a standard regression model:
+ \begin{equation}
+     Y_r=\sum_{j=1}^{p}\beta_{r,j}X_{r,j}+\epsilon_r
+ \end{equation}
+ The regressors and the errors requires at least subexponential tails. Formally, we need Orlicz-norm $||X||_{\Psi_P}$ to measure the tail, with $\Psi_P(x)=exp(x^p)-1$. Then we need 
+ \begin{assumption}
+     There exists $1\leq p\leq 2$such that
+     \begin{equation}
+         max_{r} max_{j} ||X_{r,j}||_{\Psi_P}\leq C and\ max_{r}||\epsilon_r||_{\psi_P}\leq C
+     \end{equation}
+ \end{assumption}
+
+ We then define the estimator:
+\begin{equation}
+    \hat{\beta}_r \in argmin_\beta [\frac{1}{2}E_n \{ (Y_r-\beta X_r)^2\}+\lambda/n ||\hat{\Psi}_{r,m}\beta||_1]
+\end{equation}
+where the penalty level is given by
+\begin{equation}
+    \lambda=c_\lambda n^{1/2}\Psi^{-1}(1-\frac{\gamma}{2pd})
+\end{equation}
+with $\gamma=(1/n)^{0.05}, c_\lambda=1.1$. The diagonal matrix, penalty loadings $\hat{\Psi}_{r,m}$. accounts for the variance of the estimator $\beta$ and can be estimated from $X_r,Y_r$. 
+
+\begin{theorem}
+    Under assumptions for the theorem and assumption 3, we have $\hat{\beta}_r$ obeys uniformly over all $P\in P_n$,
+    with probability 1-o(1).
+    \begin{equation}
+        \begin{split}
+            &max_{r}||\hat{\beta}_r-\beta_r^{(1)}||_2\leq C(\frac{slog a_n}{n})^{1/2}\\
+            &max_{r}||\hat{\beta}_r-\beta_r^{(1)}||_1\leq C(\frac{s^2log a_n}{n})^{1/2}\\
+            &max_{r}||\hat{\beta}_r||_0\leq Cs
+        \end{split}
+    \end{equation}
+\end{theorem}
+
+% main theorem-------------------------------------------------------
+\section{Uniform Confidence Region Theorem}
+
+
+\noindent So far, we have got enough theoretical backup to construct simultaneous confidence interval under GGM settings. Recall that assumption 1-3 are conditions for the GGM. The only obstacle to overcome is to verify whether the assumptions showed below (A2.1-A2.4 ) are fulfilled in the GGM world with assumption 1-3 holding.\\
+The main theorem of the paper is \textit{Theorem 1} providing uniform confidence region over a large set of variables, based on which we can test a null hypothesis such that no true edge is contained in a set of potential edges. The proof of the theorem replies on \textit{Corollary 2.2} of \textit{Belloni et al. (2018)}\cite{Belloni_2018}. 
+\[
+P_P(\theta_{uj} \in \hat{\theta}_{uj} \pm \sqrt{n}^{-1}c_{1-\alpha}\hat{\sigma}_{uj}) \longrightarrow 1-\alpha, \quad \textit{uniformly over $P\in \mathcal{P}_n$}
+\]
+Thus we only need to verify all the assumptions are satisfied with our proposed model with assumption 1-3. 
+\textit{Corollary 2.2} can be applied by verifying assumptions 2.1 - 2.4 in \textit{Belloni et al. (2018)}:\\
+\textbf{A 2.1}: (Moment Condition) The same as Assumption 4 above.\\
+\textbf{A 2.2}: (Estimation of Nuisance Parameters) The same as Assumption 5 above. \\
+\textbf{A 2.3}: (Additional Score Regularity) For all $n\geq n_0, P\in P_n, uj\in\mathcal{M}$ we have :
+    \begin{enumerate}
+        \item $\underset{Q}{sup} \: log N(\epsilon||F||_{Q,2},\mathcal{F},||\cdot||_{Q,2})\leq v log(a/\epsilon)$
+        \item For all $\mathrm{f} \in \mathcal{F}$ and $k = 3, 4$; $E_p(|f(W)|^k) \leq C_0 L^{k-2}_{n}$
+        \item Function class $\hat{\mathcal{F}} = \{\Bar{\psi}_{uj}(\cdot)-\hat{\psi}_{uj}(\dot):uj\in\mathcal{M} \}$ with possibility at least $1-c(logn)^{-1}$, satisfies $ log N(\epsilon,\hat{\mathcal{F}},||\cdot||_{\mathbb{P}_n,2})\leq \Bar{v} log(a/\epsilon)$
+    \end{enumerate}
+\textbf{A 2.4}: (Variation Estimation) For all $n\geq n_0, P\in P_n$:
+\[
+P_P( \underset{uj\in\mathcal{M}}{sup} |\frac{\hat{\sigma}_{uj}}{\sigma_{uj}} - 1| ) \leq 1-c(logn)^{-1}
+\]
+\begin{proof}
+    By verifying A2.1-A2.4, we can apply \textit{Corollary 2.2} in \textit{Belloni et al. (2018)} and derive high dimensional central limit theorem and gaussian approximation with multiplier bootstrap. \\
+    We define the convex domain $T_{mr}$ for nuisance parameters endowed with norm 
+    \begin{equation}
+        ||\eta||_e=||\eta^{(1)}||_2\vee||\eta^{(2)}||_2
+    \end{equation}
+    A2.1(i) requires $\theta_{m_r}$ to be sufficiently distant from the boundary of $\Theta$ (uniformly bounded). It is equivalent to show that $\underset{r = 1,...,d}{sup} |\theta_{m_r}| \leq C$. By Lemma P.2 (maximal inequality I) in \textit{Belloni et al. (2018)} with $|\mathcal{F}=d|$, $S_n = E[\underset{r}{max}|\sqrt{n}E_n\{\psi_{m_r}(X,\theta_{m_r},\eta_{m_r})\}|] \leq C log^{1/2}d$, which implies $\sqrt{n}^{-1} S_n logn = o(1)$. Since a bounded sum of sequence implies bounded sequence, A2.1 is satisfied. \\
+    A2.1(ii) and A2.1(iii) requires that $(\theta,\eta) \longmapsto E_p(\Psi_{m_r} (X,\theta,\eta))$ is a smooth function; from which we can capture the Neyman orthogonality. These two assumptions hold since the score function obeys Neyman orthogonality condition: 
+    \[\partial_t E_{t=0}[\psi_{m_r}(X,\theta_{m_r},\eta_{m_r} + t(\eta - \eta_{m_r}))] = E[ \epsilon^{(m_r)}(\eta^{(2)}_{m_r} - \eta^{(2)})X_{-m_r}] + E[(\eta^{(1)}_{m_r} - \eta^{(1)})X_{-m_r}\nu^{(m_r)}]=0
+    \]
+    A2.1(iv) ensures identifiability of $\theta_{m_r}$. Jointly with A2.1(v), it is implied that the M-estimation problem has a unique solution for $\theta_{m_r}$. By showing that: 
+    \begin{align*}
+        |\partial^2_t E[\psi_{m_r}(X,\theta_{m_r}+t(\theta-\theta_{m_r}),\eta_{m_r} + &t(\eta - \eta_{m_r}))]|\\
+        & =|2E\{[(\eta^{(2)}_{m_r} - \eta^{(2)})X_{-m_r}][(\theta_{m_r}- \theta)X_k + (\eta^{(1)}_{m_r} - \eta^{(1})X_{-m_r}]\}| \\
+        & \leq 2|E\{[(\eta^{(2)}_{m_r} - \eta^{(2)})X_{-m_r}]\}^2 E\{[(\theta_{m_r}- \theta)X_k + (\eta^{(1)}_{m_r} - \eta^{(1})X_{-m_r}]\}^2|^{1/2} \\
+        & \leq C(|\theta_{m_r}-\theta|^2 \vee \lVert \eta - \eta_{m_r} \rVert^2_e) \\
+        & \ast \textit{see bounds on $I_1$ and $I_2$ in previous section}
+    \end{align*}
+    Now we can see that A2.1 holds and $B_{1n},B_{2n}$ are exactly C.\\
+    Next, we look at A2.2 which provides a foundation for consistent estimation of nuisance parameters. In the previous discussion we noticed the trade off between complexity of nuisance space and convergence rates. To have complexity of nuisance realization set controlled, define the following:
+    \begin{align*}
+        \mathcal{F}_{1,1} & = \{ \Psi_{m_r} (\cdot,\theta,\eta) | r=1,...,d , \theta \in \Theta_{m_r},\eta \in \mathcal{T}_{m_r} \setminus \eta_{m_r} \}  \\
+        \mathcal{F}_{1,2} & =\{ \Psi_{m_r} (\cdot,\theta,\eta_{mr}) | r=1,...,d , \theta \in \Theta_{m_r}\}
+    \end{align*}
+    By deriving bounds for covering entropies, we can find envelope satisfying $\lVert F_1 \rVert_{P,q} \leq log a_n$ and $\underset{Q}{sup} log N(\epsilon \lVert F_1 \rVert_{Q,2}, \mathcal{F}_{1}, \lVert \cdot \rVert_{Q,2}) \leq slog\frac{a_n}{\epsilon}$
+    Consequently, the uniform Bahadur representation of estimator is implied with A2.1 and A2.2 verified. Further regularity conditions are are imposed for applying multiplier bootstrap in high-dimensional gaussian process approximation. The proof involving high-dimensional Guassian approximation and the validity of multiplier bootstrap is omitted here. \\
+\end{proof}
+
+
+\bibliography{refs}{\nocite{*}}
+
+\end{document} 
